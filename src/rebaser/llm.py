@@ -10,8 +10,6 @@ from .model import RebaseCommit
 
 load_dotenv()
 
-skip_ID = "1bbe20de784d7711f9a70b4c2e7b227916e32c93"
-
 
 def join_diff(diff: list[str], remove_files: bool = False) -> str:
     """Join a git diff into a single string."""
