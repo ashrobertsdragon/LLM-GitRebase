@@ -9,7 +9,7 @@ from . import llm
 from . import rebase
 
 
-def set_logger(verbose: bool) -> None:
+def set_logger(verbose: bool, silent: bool) -> None:
     """Set up the Loguru logger."""
     logger.remove()
     logger.add(
@@ -17,10 +17,25 @@ def set_logger(verbose: bool) -> None:
         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{message}</level>",
         level="INFO",
     )
+
     if verbose:
+        logger.remove()
+        logger.add(
+            sink=sys.stdout,
+            format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{message}</level>",
+            level="DEBUG",
+        )
         logger.add(
             sink="logs/rebaser.log",
+            format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{message}</level>",
             level="DEBUG",
+        )
+    elif silent:
+        logger.remove()
+        logger.add(
+            sink="logs/rebaser.log",
+            format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{message}</level>",
+            level="ERROR",
         )
 
 
@@ -38,19 +53,19 @@ def create_parser() -> argparse.Namespace:
     """Create a parser for the command line arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "repo-url",
+        "repo_url",
         metavar="REPO_URL",
         type=str,
         help="URL of the repository to clone and rebase",
     )
     parser.add_argument(
-        "local-path",
+        "local_path",
         metavar="LOCAL_PATH",
         type=parse_local_path,
         help="Local path to clone the repository to",
     )
     parser.add_argument(
-        "start-sha",
+        "start_sha",
         metavar="START_SHA",
         type=str,
         help="SHA of the first commit to rebase",
@@ -62,6 +77,7 @@ def create_parser() -> argparse.Namespace:
         type=str,
         default="HEAD",
         help="SHA of the last commit to rebase. Defaults to HEAD",
+        dest="end_sha",
     )
     parser.add_argument(
         "-s",
@@ -80,9 +96,13 @@ def create_parser() -> argparse.Namespace:
         default=Path(__file__).parent / "instruction.txt",
         type=Path,
         help="Path to text file containing LLM prompt base",
+        dest="instruction_file",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging"
+    )
+    parser.add_argument(
+        "--silent", action="store_true", help="Disable logging to stdout"
     )
 
     return parser.parse_args()
@@ -103,7 +123,7 @@ def main() -> None:
 
     args = create_parser()
 
-    set_logger(args.verbose)
+    set_logger(args.verbose, args.silent)
     commit_history, repo = get_commits.run(
         repo_url=args.repo_url,
         local_dir=args.local_path,
