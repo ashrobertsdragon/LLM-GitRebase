@@ -1,0 +1,5 @@
+I have a series of commits in a fork that introduced 8 files and modified three others.
+Most of these commits are me learning as I went and are not appropriate to be merged upstream in a pull request.
+Analyze the following commit history and come up with a detailed plan for rebasing the fork history including which commits to drop, reword, squash, etc.
+Return a list of git commands to perform in order to rebase the fork into as few commits as possible in preparation for the fork to be merged upstream in a pull request.
+Verify that this rebase commit will not result in any merge conflicts before sending your answer.

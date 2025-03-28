@@ -1,0 +1,122 @@
+import argparse
+import sys
+from pathlib import Path
+
+from loguru import logger
+
+from . import get_commits
+from . import llm
+from . import rebase
+
+
+def set_logger(verbose: bool) -> None:
+    """Set up the Loguru logger."""
+    logger.remove()
+    logger.add(
+        sink=sys.stdout,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{message}</level>",
+        level="INFO",
+    )
+    if verbose:
+        logger.add(
+            sink="logs/rebaser.log",
+            level="DEBUG",
+        )
+
+
+def parse_local_path(local_path: str) -> Path:
+    """Parse a local path to a directory."""
+    path = Path(local_path)
+    if not path.parent.is_dir():
+        raise argparse.ArgumentTypeError(f"{path} is not a valid directory")
+    full_path = path if path.is_absolute() else Path.cwd() / path
+    full_path.mkdir(parents=True, exist_ok=True)
+    return full_path
+
+
+def create_parser() -> argparse.Namespace:
+    """Create a parser for the command line arguments."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "repo-url",
+        metavar="REPO_URL",
+        type=str,
+        help="URL of the repository to clone and rebase",
+    )
+    parser.add_argument(
+        "local-path",
+        metavar="LOCAL_PATH",
+        type=parse_local_path,
+        help="Local path to clone the repository to",
+    )
+    parser.add_argument(
+        "start-sha",
+        metavar="START_SHA",
+        type=str,
+        help="SHA of the first commit to rebase",
+    )
+    parser.add_argument(
+        "-e",
+        "--end-sha",
+        metavar="END_SHA",
+        type=str,
+        default="HEAD",
+        help="SHA of the last commit to rebase. Defaults to HEAD",
+    )
+    parser.add_argument(
+        "-s",
+        "--skip-diff",
+        type=list,
+        default=[],
+        help="List of commit SHAs to skip adding the diff to LLM context",
+        metavar="COMMIT_SHA",
+        action="append",
+        dest="skip",
+        nargs="+",
+    )
+    parser.add_argument(
+        "-",
+        "--instruction-file",
+        default=Path(__file__).parent / "instruction.txt",
+        type=Path,
+        help="Path to text file containing LLM prompt base",
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose logging"
+    )
+
+    return parser.parse_args()
+
+
+def main() -> None:
+    """
+    Gemini-Rebaser
+
+    This application parses command line arguments to determine the repository URL,
+    local path, start and end commit SHAs. It retrieves the commit history and
+    uses a language model to generate rebase commands based on the commit history
+    and instructions. Finally, it performs the rebase operation on the repository.
+
+    Raises:
+        argparse.ArgumentTypeError: If the provided paths or lists are invalid.
+    """
+
+    args = create_parser()
+
+    set_logger(args.verbose)
+    commit_history, repo = get_commits.run(
+        repo_url=args.repo_url,
+        local_dir=args.local_path,
+        start_sha=args.start_sha,
+        end_sha=args.end_sha,
+    )
+    rebase_commands = llm.ask_llm(
+        commits=commit_history,
+        instruction_file=args.instruction_file,
+        skip_ids=args.skip,
+    )
+    rebase.rebase(commands=rebase_commands, repo=repo, base_ref=args.start_sha)
+
+
+if __name__ == "__main__":
+    main()
