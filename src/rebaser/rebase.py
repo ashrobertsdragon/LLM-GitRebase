@@ -13,11 +13,13 @@ from .rebase_manager import GitRebaseManager
 def write_plan(plan: list[RebaseCommit]) -> Path:
     """Write a rebase plan to a file."""
     plan_file = Path(__file__).parent / "plan_file.txt"
+    commands = []
     for command in plan:
         line = f"{command.action} {command.sha}"
         if command.action == "reword" and command.message:
             line += f" # {command.message}"
-        plan_file.write_text(line, encoding="utf-8", newline="\n")
+            commands.append(line)
+    plan_file.write_text("\n".join(commands), encoding="utf-8")
     logger.info(f"{len(plan)} commands written to plan file")
     return plan_file
 
@@ -38,7 +40,7 @@ def execute_rebase_plan(
         env["GIT_SEQUENCE_EDITOR"] = f"cat {plan_file.name} >"
 
         result = subprocess.run(
-            ["git", "rebase", "-i", "—autosquash", base_ref],
+            ["git", "rebase", "-i", "--autosquash", base_ref],
             cwd=manager.repo.working_dir,
             env=env,
             capture_output=True,
