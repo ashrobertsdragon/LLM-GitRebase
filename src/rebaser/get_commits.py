@@ -52,8 +52,7 @@ def get_diffs(commit: Commit) -> list[list[str]]:
         processed_diff = process_diff(diff)
         diffs.append(
             processed_diff
-            if processed_diff
-            else process_diff(parent.diff(commit, create_patch=True)[i])
+            or process_diff(parent.diff(commit, create_patch=True)[i])
         )
     return diffs
 
