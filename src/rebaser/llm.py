@@ -36,13 +36,16 @@ def build_commit_prompt(
     commit: dict[str, str | list[list[str]]], skip_ids: list[str]
 ) -> str:
     """Build a commit string for the LLM prompt."""
-    prompt = [f"Commit Hash: {commit['id']}"]
-    prompt.append(f"Commit Message: {commit['message']}")
-    prompt.append(f"Diff: ({len(commit['diff'])} files changed)")
-    for diff in commit["diff"]:
-        if type(diff) is not list:
-            continue
-        prompt.append(join_diff(diff, remove_files=(commit["id"] in skip_ids)))
+    prompt = [
+        f"Commit Hash: {commit['id']}",
+        f"Commit Message: {commit['message']}",
+        f"Diff: ({len(commit['diff'])} files changed)",
+    ]
+    prompt.extend(
+        join_diff(diff, remove_files=(commit["id"] in skip_ids))
+        for diff in commit["diff"]
+        if type(diff) is list
+    )
     prompt.append("-------------------------")
     return "\n".join(prompt)
 
