@@ -1,0 +1,1 @@
+Rebase the commit history in this repository based on the provided plan in the resource file '{plan_file}'. The plan is a list of commits to rebase in the order they should be applied from the base reference of {base_ref}. If there are any conflicts or other issues, you will need to call other tools to resolve them.

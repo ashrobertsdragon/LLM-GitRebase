@@ -91,18 +91,25 @@ def create_parser() -> argparse.Namespace:
         nargs="+",
     )
     parser.add_argument(
-        "-",
+        "-i",
         "--instruction-file",
-        default=Path(__file__).parent / "instruction.txt",
+        default=Path(__file__).parent / "prompts" / "instruction.txt",
         type=Path,
         help="Path to text file containing LLM prompt base",
         dest="instruction_file",
     )
     parser.add_argument(
+        "--query-file",
+        default=Path(__file__).parent / "prompts" / "initial_query.txt",
+        type=Path,
+        help="Path to text file containing MCP initial prompt",
+        dest="query_file",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging"
     )
     parser.add_argument(
-        "--silent", action="store_true", help="Disable logging to stdout"
+        "-q", "--silent", action="store_true", help="Disable logging to stdout"
     )
 
     return parser.parse_args()
@@ -124,7 +131,7 @@ def main() -> None:
     args = create_parser()
 
     set_logger(args.verbose, args.silent)
-    commit_history, repo = get_commits.run(
+    commit_history = get_commits.run(
         repo_url=args.repo_url,
         local_dir=args.local_path,
         start_sha=args.start_sha,
@@ -135,7 +142,13 @@ def main() -> None:
         instruction_file=args.instruction_file,
         skip_ids=args.skip,
     )
-    rebase.rebase(commands=rebase_commands, repo=repo, base_ref=args.start_sha)
+
+    rebase.rebase(
+        commands=rebase_commands,
+        repo_url=args.repo_url,
+        base_ref=args.start_sha,
+        query_file=args.query_file,
+    )
 
 
 if __name__ == "__main__":
