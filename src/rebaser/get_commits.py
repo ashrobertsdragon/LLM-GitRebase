@@ -64,8 +64,8 @@ def get_commits(repo: Repo, start_sha: str, end_sha: str) -> Iterator[Commit]:
     try:
         repo.commit(start_sha)
         return repo.iter_commits(f"{start_sha}..{end_sha}")
-    except GitError:
-        raise ValueError(f"Commit {start_sha} not found in repository")
+    except GitError as e:
+        raise ValueError(f"Commit {start_sha} not found in repository") from e
 
 
 def build_commit_data(commits: Iterator[Commit]) -> list[CommitInfo]:
@@ -102,7 +102,7 @@ def clone(repo_url: str, local_dir: Path) -> Repo:
 
 def run(
     repo_url: str, local_dir: Path, start_sha: str, end_sha: str
-) -> tuple[list[CommitInfo], Repo]:
+) -> list[CommitInfo]:
     """Initialize the repository and get the commit history."""
     git_dir = local_dir / ".git"
 
@@ -114,4 +114,4 @@ def run(
         logger.exception(str(e))
         sys.exit(1)
     commits = get_commits(repo, start_sha, end_sha)
-    return build_commit_data(commits), repo
+    return build_commit_data(commits)
