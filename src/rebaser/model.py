@@ -60,3 +60,15 @@ class GitStartRebase(BaseModel):
 class GitEditCommit(BaseModel):
     commit_sha: str = Field(..., min_length=7, max_length=40)
     merge_strategy: list[MergeStrategy] = Field(default_factory=list)
+
+
+class FileOperation(BaseModel):
+    """Model for file operations during rebasing"""
+
+    file_path: str
+    operation_type: Literal["modify", "restore", "delete", "rename"]
+    content: str | None = Field(default=None, min_length=1)
+    new_file_path: str | None = Field(default=None, min_length=1)
+
+    class Config:
+        extra = "forbid"
