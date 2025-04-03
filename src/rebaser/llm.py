@@ -7,7 +7,7 @@ from google.genai.errors import APIError
 from google import genai
 from loguru import logger
 
-from .model import RebasePlan
+from .model import RebasePlan, RebaseCommit
 
 load_dotenv()
 
@@ -74,7 +74,7 @@ def call_llm(
             contents=prompt,
             config={
                 "response_mime_type": "application/json",
-                "response_schema": RebasePlan,
+                "response_schema": list[RebaseCommit],
             },
         )
         if parsed := response.parsed:
@@ -112,8 +112,8 @@ def ask_llm(
         model=os.environ["model"], contents=prompt
     )
     logger.debug(f"Tokens: {tokens}")
-    response = call_llm(client, prompt)
+    response: RebasePlan = call_llm(client, prompt)
     logger.info("Response:\n")
-    for action in response:
+    for action in response.plan:
         logger.debug(action)
     return response
