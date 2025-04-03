@@ -11,6 +11,10 @@ class RebaseCommit(BaseModel):
     message: str | None = Field(None, min_length=1)
 
 
+class RebasePlan(BaseModel):
+    plan: list[RebaseCommit] = Field(default_factory=list)
+
+
 class GitCommand(BaseModel):
     """A validated git command."""
 
