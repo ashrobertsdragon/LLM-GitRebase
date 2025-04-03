@@ -10,6 +10,7 @@ from google.genai.chats import AsyncChat
 from google.genai.types import (
     GenerateContentConfig,
 )
+from google.genai.errors import APIError
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
@@ -71,7 +72,7 @@ class MCPClient:
         return tool
 
 
-async def agent_loop(query: str, agent: AsyncChat) -> str:
+async def agent_loop(query: str, agent: AsyncChat, attempt: int = 0) -> str:
     """
     Run a single interaction with the agent.
     Args:
@@ -80,8 +81,14 @@ async def agent_loop(query: str, agent: AsyncChat) -> str:
     Returns:
         The response from the agent
     """
-    response = await agent.send_message(message=query)
-    return response.text or ""
+    try:
+        response = await agent.send_message(message=query)
+        return response.text or ""
+    except APIError as e:
+        if attempt > 3:
+            raise APIError(e.code, e.details, e.response) from e
+        await asyncio.sleep(attempt**2)
+        return await agent_loop(query, agent, attempt + 1)
 
 
 def create_config(tools: list[dict]) -> GenerateContentConfig:

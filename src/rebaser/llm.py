@@ -1,12 +1,13 @@
 import os
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
+from google.genai.errors import APIError
 from google import genai
-from google.genai.types import GenerateContentResponse
 from loguru import logger
 
-from .model import RebaseCommit
+from .model import RebasePlan
 
 load_dotenv()
 
@@ -63,34 +64,37 @@ def build_prompt(
     return "\n\n".join(prompt)
 
 
-def call_llm(prompt: str) -> list[RebaseCommit]:
+def call_llm(
+    client: genai.Client, prompt: str, attempt: int = 0
+) -> RebasePlan:
     """Call the LLM to generate rebase commands."""
-    logger.debug(f"Prompt: {prompt}")
-    client = genai.Client(api_key=os.environ["gemini_key"])
-    tokens = client.models.count_tokens(
-        model=os.environ["model"], contents=prompt
-    )
-    logger.debug(f"Tokens: {tokens}")
-    response: GenerateContentResponse = client.models.generate_content(
-        model=os.environ["model"],
-        contents=prompt,
-        config={
-            "response_mime_type": "application/json",
-            "response_schema": list[RebaseCommit],
-        },
-    )
-    logger.info("Response:\n")
-    output: list[RebaseCommit] = response.parsed  # type: ignore
-    for action in output:
-        logger.info(action)
-    return output
+    try:
+        response = client.models.generate_content(
+            model=os.environ["model"],
+            contents=prompt,
+            config={
+                "response_mime_type": "application/json",
+                "response_schema": RebasePlan,
+            },
+        )
+        if parsed := response.parsed:
+            return RebasePlan.model_validate(parsed)
+        if text := response.text:
+            return RebasePlan.model_validate_json(text)
+
+        raise ValueError("Cannot validate response")
+    except APIError as e:
+        if attempt > 3:
+            raise APIError(e.code, e.details, e.response) from e
+        time.sleep(attempt**2)
+        return call_llm(client, prompt, attempt + 1)
 
 
 def ask_llm(
     commits: list[dict[str, str | list[list[str]]]],
     instruction_file: Path,
     skip_ids: list[str],
-) -> list[RebaseCommit]:
+) -> RebasePlan:
     """Ask the LLM to generate rebase commands."""
     instructions = instruction_file.read_text(encoding="utf-8").replace(
         "\n", " "
@@ -102,5 +106,14 @@ def ask_llm(
     prompt_file = Path(__file__).parent / "prompt.txt"
     prompt_file.write_text(prompt, encoding="utf-8", newline="\n")
     logger.debug("Prompt written to prompt.txt")
-
-    return call_llm(prompt)
+    logger.debug(f"Prompt: {prompt}")
+    client = genai.Client(api_key=os.environ["gemini_key"])
+    tokens = client.models.count_tokens(
+        model=os.environ["model"], contents=prompt
+    )
+    logger.debug(f"Tokens: {tokens}")
+    response = call_llm(client, prompt)
+    logger.info("Response:\n")
+    for action in response:
+        logger.debug(action)
+    return response
