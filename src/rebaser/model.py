@@ -69,6 +69,7 @@ class GitEditCommit(BaseModel):
 class FileOperation(BaseModel):
     """Model for file operations during rebasing"""
 
+    commit_sha: str
     file_path: str
     operation_type: Literal["modify", "restore", "delete", "rename"]
     content: str | None = Field(default=None, min_length=1)
