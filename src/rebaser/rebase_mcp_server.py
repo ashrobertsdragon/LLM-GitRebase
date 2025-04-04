@@ -3,9 +3,7 @@ import sys
 from pathlib import Path
 
 from git import Repo, GitCommandError
-from git.diff import Diff, DiffIndex
 
-from .get_commits import get_diffs
 from .model import MCPToolOutput, MergeStrategy, FileOperation
 from mcp.server.fastmcp import FastMCP
 
@@ -37,19 +35,21 @@ class GitRebaseMCPToolManager:
     def _restore_file(
         self, file_path: Path, operation: FileOperation
     ) -> str | None:
-        """Restore a deleted file"""
-        if file_path.exists():
-            return f"Cannot restore {operation.file_path}: File already exists"
-        commit = self.repo.commit(operation.commit_sha)
-        parent = commit.parents[0]
-        diffs = parent.diff(commit, paths=operation.file_path)
-        if not diffs:
+        """Restore a deleted or modified file"""
+        file_commit = self.repo.commit(operation.commit_sha)
+        commit_parents = file_commit.parents
+        if not commit_parents:
+            return f"Cannot restore {operation.file_path}: No changes found"
+        commit_parent = commit_parents[0]
+        file_diffs = commit_parent.diff(file_commit, paths=operation.file_path)
+
+        if not file_diffs:
             return f"Cannot restore {operation.file_path}: No changes found"
 
-        diff = diffs[0]
-        if not diff.a_rawpath:
+        file = file_diffs[0]
+        if not file.a_rawpath:
             return f"Cannot restore {operation.file_path}: No changes found"
-        with open(diff.a_rawpath, "r", encoding="utf-8") as a:
+        with open(file.a_rawpath, "r", encoding="utf-8") as a:
             file_path.write_text(a.read())
 
         self.repo.git.add(operation.file_path)
