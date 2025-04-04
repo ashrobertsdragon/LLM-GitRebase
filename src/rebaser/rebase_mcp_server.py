@@ -3,7 +3,9 @@ import sys
 from pathlib import Path
 
 from git import Repo, GitCommandError
+from git.diff import Diff, DiffIndex
 
+from .get_commits import get_diffs
 from .model import MCPToolOutput, MergeStrategy, FileOperation
 from mcp.server.fastmcp import FastMCP
 
@@ -28,7 +30,7 @@ class GitRebaseMCPToolManager:
     ) -> str | None:
         """Modify a file with new content"""
         if not operation.content:
-            return f"Cannot restore {operation.file_path}: No content provided"
+            return f"Cannot modify {operation.file_path}: No content provided"
         file_path.write_text(operation.content)
         self.repo.git.add(operation.file_path)
 
@@ -38,9 +40,18 @@ class GitRebaseMCPToolManager:
         """Restore a deleted file"""
         if file_path.exists():
             return f"Cannot restore {operation.file_path}: File already exists"
-        if not operation.content:
-            return f"Cannot restore {operation.file_path}: No content provided"
-        file_path.write_text(operation.content)
+        commit = self.repo.commit(operation.commit_sha)
+        parent = commit.parents[0]
+        diffs = parent.diff(commit, paths=operation.file_path)
+        if not diffs:
+            return f"Cannot restore {operation.file_path}: No changes found"
+
+        diff = diffs[0]
+        if not diff.a_rawpath:
+            return f"Cannot restore {operation.file_path}: No changes found"
+        with open(diff.a_rawpath, "r", encoding="utf-8") as a:
+            file_path.write_text(a.read())
+
         self.repo.git.add(operation.file_path)
 
     def _delete_file(
