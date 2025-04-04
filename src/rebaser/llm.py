@@ -107,8 +107,6 @@ def ask_llm(
 
     prompt = build_prompt(commits, instructions, skip_ids)
 
-    prompt_file = Path(__file__).parent / "prompt.txt"
-    prompt_file.write_text(prompt, encoding="utf-8", newline="\n")
     logger.debug("Prompt written to prompt.txt")
     logger.debug(f"Prompt: {prompt}")
     client = genai.Client(api_key=os.environ["gemini_key"])
