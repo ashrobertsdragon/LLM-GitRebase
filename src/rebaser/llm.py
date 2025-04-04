@@ -86,7 +86,11 @@ def call_llm(
     except APIError as e:
         if attempt > 3:
             raise APIError(e.code, e.details, e.response) from e
-        time.sleep(attempt**2)
+        sleep_time = attempt**2
+        logger.info(
+            f"Error {e.code}: {e.status} - {e.message}. Retrying in {sleep_time} seconds"
+        )
+        time.sleep(sleep_time)
         return call_llm(client, prompt, attempt + 1)
 
 
