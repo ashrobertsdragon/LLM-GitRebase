@@ -6,7 +6,8 @@ from loguru import logger
 
 from . import get_commits
 from . import llm
-from . import rebase
+from . import mcp_client
+from .model import RebasePlan
 
 
 def set_logger(verbose: bool, silent: bool) -> None:
@@ -115,6 +116,20 @@ def create_parser() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def write_plan(plan: RebasePlan) -> Path:
+    """Write a rebase plan to a file."""
+    plan_file = Path(__file__).parent / "plan_file.txt"
+    commands = []
+    for command in plan.plan:
+        line = f"{command.action} {command.sha}"
+        if command.action == "reword" and command.message:
+            line += f" # {command.message}"
+            commands.append(line)
+    plan_file.write_text("\n".join(commands), encoding="utf-8")
+    logger.info(f"{len(plan.plan)} commands written to plan file")
+    return plan_file
+
+
 def main() -> None:
     """
     Gemini-Rebaser
@@ -131,24 +146,23 @@ def main() -> None:
     args = create_parser()
 
     set_logger(args.verbose, args.silent)
-    commit_history = get_commits.run(
-        repo_url=args.repo_url,
-        local_dir=args.local_path,
-        start_sha=args.start_sha,
-        end_sha=args.end_sha,
-    )
-    rebase_commands = llm.ask_llm(
-        commits=commit_history,
-        instruction_file=args.instruction_file,
-        skip_ids=args.skip,
-    )
 
-    rebase.rebase(
-        commands=rebase_commands,
-        repo_url=args.repo_url,
-        base_ref=args.start_sha,
-        query_file=args.query_file,
-    )
+    plan_file = Path(__file__).parent / "plan_file.txt"
+    if not plan_file.exists():
+        commit_history = get_commits.run(
+            repo_url=args.repo_url,
+            local_dir=args.local_path,
+            start_sha=args.start_sha,
+            end_sha=args.end_sha,
+        )
+        rebase_commands = llm.ask_llm(
+            commits=commit_history,
+            instruction_file=args.instruction_file,
+            skip_ids=args.skip,
+        )
+        plan_file = write_plan(rebase_commands)
+
+    mcp_client.main(args.repo_url, args.start_sha, plan_file, args.query_file)
 
 
 if __name__ == "__main__":
