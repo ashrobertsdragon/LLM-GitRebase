@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 from pathlib import Path
@@ -86,12 +87,12 @@ def validate_llm_response(response_text: str) -> RebasePlan:
     return RebasePlan.model_validate_json(json_text, strict=False)
 
 
-def call_llm(
+async def call_llm(
     client: genai.Client, prompt: str, attempt: int = 0
 ) -> RebasePlan:
     """Call the LLM to generate rebase commands."""
     try:
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model=os.environ["model"],
             contents=prompt,
             config={
@@ -116,7 +117,25 @@ def call_llm(
             f"Error {e.code}: {e.status} - {e.message}. Retrying in {sleep_time} seconds"
         )
         time.sleep(sleep_time)
-        return call_llm(client, prompt, attempt + 1)
+        return await call_llm(client, prompt, attempt + 1)
+
+
+async def call_llm_with_spinner(
+    client: genai.Client, prompt: str
+) -> RebasePlan:
+    """Run the LLM call with a spinner animation."""
+    llm_call = asyncio.create_task(call_llm(client, prompt))
+    while not llm_call.done():
+        for frame in ["|", "/", "-", "\\"]:
+            print(f"\r{frame}", end="", flush=True)
+            await asyncio.sleep(0.1)
+    print("\r ", end="\n", flush=True)
+    return llm_call.result()
+
+
+def call_llm_with_animation(client: genai.Client, prompt: str) -> RebasePlan:
+    """Run the async function in a new event loop."""
+    return asyncio.run(call_llm_with_spinner(client, prompt))
 
 
 def ask_llm(
@@ -131,15 +150,16 @@ def ask_llm(
     logger.debug("Prompt instructions read from file")
 
     prompt = build_prompt(commits, instructions, skip_ids)
-
-    logger.debug("Prompt written to prompt.txt")
     logger.debug(f"Prompt: {prompt}")
+
     client = genai.Client(api_key=os.environ["gemini_key"])
     tokens = client.models.count_tokens(
         model=os.environ["model"], contents=prompt
     )
+
     logger.debug(f"Tokens: {tokens}")
-    response: RebasePlan = call_llm(client, prompt)
+    response: RebasePlan = call_llm_with_animation(client, prompt)
+
     logger.info("Response:\n")
     for action in response.plan:
         logger.debug(action)
