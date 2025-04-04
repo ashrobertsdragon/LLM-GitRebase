@@ -1,5 +1,6 @@
 import argparse
 import sys
+import time
 from pathlib import Path
 
 from loguru import logger
@@ -15,7 +16,7 @@ def set_logger(verbose: bool, silent: bool) -> None:
     logger.remove()
     logger.add(
         sink=sys.stdout,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{message}</level>",
+        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{message}</level>",
         level="INFO",
     )
 
@@ -119,13 +120,13 @@ def create_parser() -> argparse.Namespace:
 def write_plan(plan: RebasePlan) -> Path:
     """Write a rebase plan to a file."""
     plan_file = Path(__file__).parent / "plan_file.txt"
-    commands = []
+    commands: list[str] = []
     for command in plan.plan:
         line = f"{command.action} {command.sha}"
-        if command.action == "reword" and command.message:
+        if command.action == "REWORD" and command.message:
             line += f" # {command.message}"
-            commands.append(line)
-    plan_file.write_text("\n".join(commands), encoding="utf-8")
+        commands.append(line)
+    plan_file.write_text("\n".join(commands))
     logger.info(f"{len(plan.plan)} commands written to plan file")
     return plan_file
 
@@ -166,4 +167,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    start = time.time()
+    try:
+        main()
+        logger.debug(f"Execution time: {time.time() - start:.2f} seconds")
+    except Exception as e:
+        logger.error(e)
+        logger.debug(f"Execution time: {time.time() - start:.2f} seconds")
+        exit(1)
