@@ -5,6 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from dotenv import load_dotenv
+from loguru import logger
 from google.genai.client import AsyncClient, BaseApiClient
 from google.genai.chats import AsyncChat
 from google.genai.types import (
@@ -87,13 +88,17 @@ async def agent_loop(query: str, agent: AsyncChat, attempt: int = 0) -> str:
     except APIError as e:
         if attempt > 3:
             raise APIError(e.code, e.details, e.response) from e
-        await asyncio.sleep(attempt**2)
+        sleep_time = attempt**2
+        logger.info(
+            f"Error {e.code}: {e.status} - {e.message}. Retrying in {sleep_time} seconds"
+        )
+        await asyncio.sleep(sleep_time)
         return await agent_loop(query, agent, attempt + 1)
 
 
 def create_config(tools: list[dict]) -> GenerateContentConfig:
     _tools = [tool["name"] for tool in tools]
-    return GenerateContentConfig(tools=_tools)
+    return GenerateContentConfig(tools=_tools)  # type: ignore
 
 
 def prompt_user() -> str:
@@ -115,7 +120,7 @@ async def initialize(
         plan: The rebasing plan
     """
     server = StdioServerParameters(
-        command="uv run", args=["rebase_mcp_server", repo_path]
+        command="uv", args=["run", "rebase_mcp_server", repo_path]
     )
     mcp_client = MCPClient()
     await mcp_client.connect_to_server(server)
