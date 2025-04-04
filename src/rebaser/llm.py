@@ -78,9 +78,13 @@ def call_llm(
             },
         )
         if parsed := response.parsed:
-            return RebasePlan.model_validate(parsed)
-        if text := response.text:
-            return RebasePlan.model_validate_json(text)
+            logger.debug("Parsed response")
+            logger.debug(parsed)
+            return RebasePlan(plan=parsed)  # type: ignore
+        elif text := response.text:
+            logger.debug("Parsing failed, using raw text")
+            logger.debug(text)
+            return RebasePlan.model_validate_json(text, strict=False)
 
         raise ValueError("Cannot validate response")
     except APIError as e:
