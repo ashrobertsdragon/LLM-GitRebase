@@ -52,6 +52,7 @@ class MCPClient:
             }
             for tool in response.tools
         ]
+        logger.debug(f"Server initialized with tools: {self.tools}")
 
     def call_tool(self, tool_name: str) -> Callable:
         """
@@ -143,4 +144,5 @@ async def initialize(
 
 
 def main(repo_path: str, base_commit: str, plan_file: Path, query_file: Path):
+    logger.debug("Initializing MCP client...")
     asyncio.run(initialize(repo_path, base_commit, plan_file, query_file))
