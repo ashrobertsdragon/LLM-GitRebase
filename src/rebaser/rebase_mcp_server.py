@@ -1,11 +1,23 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "git",
+#     "loguru",
+#     "pydantic",
+#     "mcp[cli]"
+# ]
+# ///
+
+
 import subprocess
 import sys
 from pathlib import Path
 
+from loguru import logger
 from git import Repo, GitCommandError
-
-from .model import MCPToolOutput, MergeStrategy, FileOperation
 from mcp.server.fastmcp import FastMCP
+
+from rebaser.model import MCPToolOutput, MergeStrategy, FileOperation
 
 mcp = FastMCP(name="GitRebase-MCP")
 
@@ -332,5 +344,6 @@ class GitRebaseMCPToolManager:
 
 
 if __name__ == "__main__":
+    logger.info("Starting MCP server...")
     manager = GitRebaseMCPToolManager(repo_path=sys.argv[1])
     mcp.run(transport="stdio")
