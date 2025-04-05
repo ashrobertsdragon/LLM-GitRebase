@@ -33,24 +33,22 @@ class MCPClient:
 
     async def connect_to_server(self, server_params: StdioServerParameters):
         """Establishes connection to MCP server"""
-        stdio_transport = await self.exit_stack.enter_async_context(
-            stdio_client(server_params)
-        )
-        self.stdio, self.write = stdio_transport
-        self.session = await self.exit_stack.enter_async_context(
-            ClientSession(self.stdio, self.write)
-        )
+        async with stdio_client(server_params) as stdio_transport:
+            self.stdio, self.write = stdio_transport
+            self.session = await self.exit_stack.enter_async_context(
+                ClientSession(self.stdio, self.write)
+            )
 
         await self.session.initialize()
 
-        response = await self.session.list_tools()
+        tool_list = await self.session.list_tools()
         self.tools = [
             {
                 "name": tool.name,
                 "description": tool.description,
                 "input_schema": tool.inputSchema,
             }
-            for tool in response.tools
+            for tool in tool_list.tools
         ]
         logger.debug(f"Server initialized with tools: {self.tools}")
 
