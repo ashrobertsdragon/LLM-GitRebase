@@ -78,7 +78,7 @@ def build_commit_data(commits: Iterator[Commit]) -> list[CommitInfo]:
             "message": decode_bytes(commit.message).split("\n")[0],
             "diff": diffs,
         }
-        logger.info(f"{commit_info["id"][-6:]} - {commit_info["message"]}")
+        logger.debug(f"{commit_info["id"][-6:]} - {commit_info["message"]}")
         logger.info(f"{len(diffs)} diffs in commit")
         for diff in diffs:
             logger.debug(diff)
