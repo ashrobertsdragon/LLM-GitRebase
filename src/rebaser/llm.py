@@ -78,11 +78,12 @@ def validate_llm_response(response_text: str) -> RebasePlan:
     Returns:
         RebasePlan: The parsed RebasePlan object.
     """
-    json_start = response_text.find("[]")
+    json_start = response_text.find("[")
     json_end = response_text.rfind("]") + 1
     if json_start == -1 or json_end <= json_start:
+        logger.debug(f"{json_start=}, {json_end=}")
         raise ValueError("Cannot validate response")
-    json_text = response_text[json_start:json_end]
+    json_text = '{"plan": ' + response_text[json_start:json_end] + "}"
     logger.debug(json_text)
     return RebasePlan.model_validate_json(json_text, strict=False)
 
