@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "git",
+#     "gitpython",
 #     "loguru",
 #     "pydantic",
 #     "mcp[cli]"
@@ -12,14 +12,41 @@
 import subprocess
 import sys
 from pathlib import Path
+from typing import Literal, TypedDict
 
 from loguru import logger
 from git import Repo, GitCommandError
 from mcp.server.fastmcp import FastMCP
-
-from rebaser.model import MCPToolOutput, MergeStrategy, FileOperation
+from pydantic import BaseModel, Field
 
 mcp = FastMCP(name="GitRebase-MCP")
+
+
+class MCPToolOutput(TypedDict):
+    """The output of the MCP tool."""
+
+    success: bool
+    message: str
+
+
+class MergeStrategy(BaseModel):
+    """A merge strategy."""
+
+    file_path: str
+    content: str
+
+
+class FileOperation(BaseModel):
+    """Model for file operations during rebasing"""
+
+    commit_sha: str
+    file_path: str
+    operation_type: Literal["modify", "restore", "delete", "rename"]
+    content: str | None = Field(default=None, min_length=1)
+    new_file_path: str | None = Field(default=None, min_length=1)
+
+    class Config:
+        extra = "forbid"
 
 
 class GitRebaseMCPToolManager:
@@ -343,7 +370,11 @@ class GitRebaseMCPToolManager:
         }
 
 
-if __name__ == "__main__":
+def main():
     logger.info("Starting MCP server...")
-    manager = GitRebaseMCPToolManager(repo_path=sys.argv[1])
+    manager = GitRebaseMCPToolManager(repo_path=sys.argv[1])  # noqa: F841
     mcp.run(transport="stdio")
+
+
+if __name__ == "__main__":
+    main()
