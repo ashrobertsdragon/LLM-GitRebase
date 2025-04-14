@@ -1,6 +1,7 @@
 import asyncio
 import os
 
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -12,7 +13,6 @@ from google.genai.types import (
     GenerateContentConfig,
 )
 from google.genai.errors import APIError
-from mcp import StdioServerParameters
 
 from rebaser.mcp_client import MCPClient
 
@@ -71,6 +71,33 @@ async def query_user(response: str, agent: AsyncChat) -> None:
         response = await agent_loop(query, agent)
 
 
+@asynccontextmanager
+async def get_server(repo_path: str):
+    root = Path(__file__).parent
+    server_path = root / "rebase_server.py"
+    command = "uv"
+    args = ["run", str(server_path), repo_path]
+
+    client = MCPClient()
+    await client.connect_to_server(command, args, env=None)
+    try:
+        yield client
+    finally:
+        await client.aclose()
+
+
+async def get_tools(server: MCPClient) -> list[dict]:
+    tools = await server.tools
+    return [
+        {
+            "name": tool.name,
+            "description": tool.description,
+            "schema": tool.inputSchema,
+        }
+        for tool in tools
+    ]
+
+
 async def initialize(
     repo_path: str,
     base_commit: str,
@@ -85,48 +112,18 @@ async def initialize(
         plan_file: The path to the plan file
         initial_query_file: The path to the initial query file
     """
-    rebase_server = StdioServerParameters(
-        command="uv",
-        args=[
-            "run",
-            "rebase-mcp-server",
-            repo_path,
-        ],
-        env=None,
-    )
-    rebase_client = MCPClient()
 
-    git_server = StdioServerParameters(
-        command="uv",
-        args=[
-            "run",
-            "git_mcp_server",
-            repo_path,
-        ],
-        env=None,
-    )
-    git_client = MCPClient()
+    logger.debug("Connecting to MCP server...")
+    async with get_server(repo_path) as server_client:
+        tools = await get_tools(server_client)
 
-    try:
-        logger.debug("Connecting to MCP servers...")
-        await rebase_client.connect_to_server(rebase_server)
-        await git_client.connect_to_server(git_server)
-        logger.debug("Connected to MCP servers.")
-
-        config = create_config(rebase_client.tools + git_client.tools)
+        logger.debug("Initializing agent...")
+        config = create_config(tools)
         agent = client.chats.create(model=os.environ["model"], config=config)
 
-        rebase_tool_schemas = "\n".join([
-            f'{tool["name"]: tool["input_schema"]}'
-            for tool in rebase_client.tools
+        tool_schemas = "\n".join([
+            f"{tool['name']}: {tool['schema']}" for tool in tools
         ])
-
-        git_tool_schemas = "\n".join([
-            f'{tool["name"]: tool["input_schema"]}'
-            for tool in git_client.tools
-        ])
-
-        tool_schemas = f"{rebase_tool_schemas}\n{git_tool_schemas}"
         initial_query_text = initial_query_file.read_text()
         initial_query = initial_query_text.format(
             plan_file=str(plan_file),
@@ -137,11 +134,6 @@ async def initialize(
         response = await agent_loop(initial_query, agent)
 
         await query_user(response, agent)
-
-    finally:
-        await rebase_client.exit_stack.aclose()
-        await git_client.exit_stack.aclose()
-        logger.debug("MCP client resources closed.")
 
 
 def main(repo_path: str, base_commit: str, plan_file: Path, query_file: Path):
