@@ -370,11 +370,11 @@ class GitRebaseMCPToolManager:
         }
 
 
-def main():
+def main(path: str):
     logger.info("Starting MCP server...")
-    manager = GitRebaseMCPToolManager(repo_path=sys.argv[1])  # noqa: F841
+    manager = GitRebaseMCPToolManager(repo_path=path)  # noqa: F841
     mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1])
