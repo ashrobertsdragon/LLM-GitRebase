@@ -1,41 +1,58 @@
 from contextlib import AsyncExitStack
+from datetime import timedelta
 
-from loguru import logger
+import logging
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.types import Tool
+
+logger = logging.getLogger("temp")
 
 
 class MCPClient:
     """A client class for interacting with the MCP (Model Control Protocol) server"""
 
     def __init__(self):
-        """Initialize the MCP client"""
+        """Initialize session and client objects"""
         self.session: ClientSession | None = None
         self.exit_stack = AsyncExitStack()
-        self.tools: list[dict] = []
+        self._tools: list[Tool] = []
 
-    async def connect_to_server(self, server_params: StdioServerParameters):
-        """Establishes connection to MCP server using AsyncExitStack for persistence."""
+    async def connect_to_server(
+        self, command: str, args: list[str], env: dict[str, str] | None
+    ) -> None:
+        """Establishes connection to MCP server."""
+        server_params = StdioServerParameters(
+            command=command, args=args, env=env
+        )
 
         stdio_transport = await self.exit_stack.enter_async_context(
             stdio_client(server_params)
         )
         self.stdio, self.write = stdio_transport
-
         self.session = await self.exit_stack.enter_async_context(
-            ClientSession(self.stdio, self.write)
+            ClientSession(
+                self.stdio,
+                self.write,
+                read_timeout_seconds=timedelta(seconds=30),
+            )
         )
 
         await self.session.initialize()
-        logger.debug("MCP session initialized.")
 
-        list_tools = await self.session.list_tools()
-        self.tools = [
-            {
-                "name": tool.name,
-                "description": tool.description,
-                "input_schema": tool.inputSchema,
-            }
-            for tool in list_tools.tools
-        ]
-        logger.debug(f"Server initialized with tools: {self.tools}")
+    @property
+    async def tools(self) -> list[Tool]:
+        if not self._tools:
+            self._tools = await self._list_tools()
+        return self._tools
+
+    async def _list_tools(self) -> list[Tool]:
+        """List tools"""
+        if self.session is None:
+            raise ValueError("Server is not initialized")
+        tool_result = await self.session.list_tools()
+        return tool_result.tools
+
+    async def cleanup(self):
+        """Clean up resources"""
+        await self.exit_stack.aclose()
