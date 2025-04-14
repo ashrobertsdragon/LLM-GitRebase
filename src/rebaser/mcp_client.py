@@ -1,12 +1,9 @@
 from contextlib import AsyncExitStack
 from datetime import timedelta
 
-import logging
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.types import Tool
-
-logger = logging.getLogger("temp")
 
 
 class MCPClient:
@@ -53,6 +50,12 @@ class MCPClient:
         tool_result = await self.session.list_tools()
         return tool_result.tools
 
-    async def cleanup(self):
+    async def aclose(self):
         """Clean up resources"""
         await self.exit_stack.aclose()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.aclose()
