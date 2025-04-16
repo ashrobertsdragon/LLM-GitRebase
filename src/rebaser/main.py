@@ -163,7 +163,7 @@ def main() -> None:
         )
         plan_file = write_plan(rebase_commands)
 
-    agent.main(args.repo_url, args.start_sha, plan_file, args.query_file)
+    agent.main(args.local_path, args.start_sha, plan_file, args.query_file)
 
 
 if __name__ == "__main__":
