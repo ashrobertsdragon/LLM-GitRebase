@@ -707,10 +707,10 @@ class GitRebaseMCPToolManager:
         return {"success": True, "message": "".join(output)}
 
 
-def main(path: str):
-    manager = GitRebaseMCPToolManager(repo_path=path)  # noqa: F841
+def main():
+    manager = GitRebaseMCPToolManager(repo_path=sys.argv[1])  # noqa: F841
     mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main()
