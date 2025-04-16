@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 rebaser = "rebaser.main:main"
+server = "server:main"
 
 [build-system]
 requires = ["hatchling"]
