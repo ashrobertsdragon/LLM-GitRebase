@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from mcp.types import Tool
+from mcp.types import CallToolResult, Tool
 
 
 class MCPClient:
@@ -44,11 +44,19 @@ class MCPClient:
         return self._tools
 
     async def _list_tools(self) -> list[Tool]:
-        """List tools"""
+        """Exposes the session's list_tools method."""
         if self.session is None:
             raise ValueError("Server is not initialized")
         tool_result = await self.session.list_tools()
         return tool_result.tools
+
+    async def call_tool(
+        self, name: str, args: dict | None = None
+    ) -> CallToolResult:
+        """Exposes the session's call_tool method."""
+        if self.session is None:
+            raise ValueError("Server is not initialized")
+        return await self.session.call_tool(name, args)
 
     async def aclose(self):
         """Clean up resources"""
