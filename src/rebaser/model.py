@@ -1,6 +1,7 @@
 from enum import StrEnum
 from typing import Literal, TypedDict
 from pydantic import BaseModel, Field
+from google.genai.types import SchemaDict
 
 
 class RebaseCommit(BaseModel):
@@ -77,3 +78,64 @@ class FileOperation(BaseModel):
 
     class Config:
         extra = "forbid"
+
+
+FileOperation.model_json_schema()
+
+
+def convert_to_schema(
+    typed_dict: type[TypedDict],  # type: ignore[valid-type]
+) -> SchemaDict:
+    py_json_map = {
+        "str": "string",
+        "int": "integer",
+        "float": "number",
+        "bool": "boolean",
+        "list": "array",
+        "dict": "object",
+    }
+
+    properties = {}
+    required = []
+
+    for key, type_ in typed_dict.__annotations__.items():
+        properties[key] = {"type": py_json_map[type_.__name__]}
+        required.append(key)
+
+    return {"properties": properties, "required": required}
+
+
+def clean_inline_schema(schema: dict) -> SchemaDict:
+    """Inlines Pydantic $ref definitions within a JSON schema."""
+    definitions = schema.get("$defs", {})
+
+    def _resolve_ref(ref: str) -> dict:
+        ref_path = ref.replace("#/$defs/", "").split("/")
+        current = definitions
+
+        for part in ref_path:
+            if part not in current:
+                return {"$ref": ref}
+            current = current[part]
+        return current
+
+    def _inline(obj: dict) -> dict:
+        if isinstance(obj, dict):
+            if "$ref" in obj and obj["$ref"].startswith("#/$defs/"):
+                return _resolve_ref(obj["$ref"])
+            return {k: _inline(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [_inline(item) for item in obj]
+        return obj
+
+    updated_schema = _inline(schema)
+    updated_schema["properties"].pop("self")
+    updated_schema["required"].remove("self")
+
+    return {
+        key: value
+        for key, value in updated_schema.items()
+        if key
+        not in ["additionalProperties", "$schema", "$defs", "title", "type"]
+        and value
+    }  # type: ignore
