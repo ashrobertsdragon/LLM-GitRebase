@@ -12,13 +12,15 @@ dependencies = [
     "google-genai>=1.8.0",
     "loguru>=0.7.3",
     "mcp[cli]>=1.6.0",
+    "pathspec>=0.12.1",
     "pydantic>=2.10.6",
     "python-dotenv>=1.1.0",
 ]
 
 [project.scripts]
 rebaser = "rebaser.main:main"
-server = "server:main"
+git_server = "git_mcp_server:main"
+filesystem_server = "filesystem_mcp_server:main"
 
 [build-system]
 requires = ["hatchling"]
