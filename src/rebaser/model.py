@@ -80,31 +80,6 @@ class FileOperation(BaseModel):
         extra = "forbid"
 
 
-FileOperation.model_json_schema()
-
-
-def convert_to_schema(
-    typed_dict: type[TypedDict],  # type: ignore[valid-type]
-) -> SchemaDict:
-    py_json_map = {
-        "str": "string",
-        "int": "integer",
-        "float": "number",
-        "bool": "boolean",
-        "list": "array",
-        "dict": "object",
-    }
-
-    properties = {}
-    required = []
-
-    for key, type_ in typed_dict.__annotations__.items():
-        properties[key] = {"type": py_json_map[type_.__name__]}
-        required.append(key)
-
-    return {"properties": properties, "required": required}
-
-
 def clean_inline_schema(schema: dict) -> SchemaDict:
     """Inlines Pydantic $ref definitions within a JSON schema."""
     definitions = schema.get("$defs", {})
@@ -129,7 +104,7 @@ def clean_inline_schema(schema: dict) -> SchemaDict:
         if isinstance(obj, dict):
             new_obj = {}
             for k, v in obj.items():
-                if k in ["additionalProperties", "$schema"]:
+                if k in ["additionalProperties", "$schema", "default"]:
                     continue
                 if (
                     k == "$ref"
@@ -149,7 +124,7 @@ def clean_inline_schema(schema: dict) -> SchemaDict:
     updated_schema = _inline(schema)
     updated_schema["properties"].pop("self")
     updated_schema["required"].remove("self")
-    for key in ["$defs", "title", "type"]:
+    for key in ["$defs", "title"]:
         if key in updated_schema:
             updated_schema.pop(key)
 

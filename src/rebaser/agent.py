@@ -19,7 +19,7 @@ from google.genai.types import (
 )
 
 from rebaser.mcp_client import MCPClient
-from rebaser.model import MCPToolOutput, convert_to_schema, clean_inline_schema
+from rebaser.model import clean_inline_schema
 
 load_dotenv()
 api_client = BaseApiClient(api_key=os.environ["gemini_key"])
@@ -81,7 +81,6 @@ def create_config(
             "name": tool.name,
             "description": tool.description,
             "parameters": schema,
-            "response": convert_to_schema(MCPToolOutput),
         })
         schemas[tool.name] = schema
 
@@ -152,7 +151,6 @@ async def initialize(
 
         logger.debug("Initializing config...")
         config, schemas = create_config(tools)
-        logger.debug(config)
         tool_schemas = "\n".join(
             f"{name}: {schema}" for name, schema in schemas.items()
         )
