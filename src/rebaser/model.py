@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, overload
 from pydantic import BaseModel, Field
 from google.genai.types import SchemaDict
 
@@ -119,11 +119,29 @@ def clean_inline_schema(schema: dict) -> SchemaDict:
             current = current[part]
         return current
 
-    def _inline(obj: dict) -> dict:
+    @overload
+    def _inline(obj: dict) -> dict: ...
+    @overload
+    def _inline(obj: list) -> list: ...
+    @overload
+    def _inline(obj: str) -> str: ...
+    def _inline(obj: dict | list | str) -> dict | list | str:
         if isinstance(obj, dict):
-            if "$ref" in obj and obj["$ref"].startswith("#/$defs/"):
-                return _resolve_ref(obj["$ref"])
-            return {k: _inline(v) for k, v in obj.items()}
+            new_obj = {}
+            for k, v in obj.items():
+                if k in ["additionalProperties", "$schema"]:
+                    continue
+                if (
+                    k == "$ref"
+                    and isinstance(v, str)
+                    and v.startswith("#/$defs/")
+                ):
+                    ref_value = _resolve_ref(v)
+                    inlined = _inline(ref_value)
+                    new_obj.update(inlined)
+                else:
+                    new_obj[k] = _inline(v)
+            return new_obj
         elif isinstance(obj, list):
             return [_inline(item) for item in obj]
         return obj
@@ -131,11 +149,8 @@ def clean_inline_schema(schema: dict) -> SchemaDict:
     updated_schema = _inline(schema)
     updated_schema["properties"].pop("self")
     updated_schema["required"].remove("self")
+    for key in ["$defs", "title", "type"]:
+        if key in updated_schema:
+            updated_schema.pop(key)
 
-    return {
-        key: value
-        for key, value in updated_schema.items()
-        if key
-        not in ["additionalProperties", "$schema", "$defs", "title", "type"]
-        and value
-    }  # type: ignore
+    return SchemaDict(**updated_schema)
