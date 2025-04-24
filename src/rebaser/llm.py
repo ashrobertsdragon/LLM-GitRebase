@@ -99,6 +99,7 @@ async def call_llm(
             config={
                 "response_mime_type": "application/json",
                 "response_schema": list[RebaseCommit],
+                "thinking_config": {"include_thoughts": True},
             },
         )
         if parsed := response.parsed:

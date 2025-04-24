@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, overload
 from pydantic import BaseModel, Field
 from google.genai.types import SchemaDict
 
@@ -80,31 +80,6 @@ class FileOperation(BaseModel):
         extra = "forbid"
 
 
-FileOperation.model_json_schema()
-
-
-def convert_to_schema(
-    typed_dict: type[TypedDict],  # type: ignore[valid-type]
-) -> SchemaDict:
-    py_json_map = {
-        "str": "string",
-        "int": "integer",
-        "float": "number",
-        "bool": "boolean",
-        "list": "array",
-        "dict": "object",
-    }
-
-    properties = {}
-    required = []
-
-    for key, type_ in typed_dict.__annotations__.items():
-        properties[key] = {"type": py_json_map[type_.__name__]}
-        required.append(key)
-
-    return {"properties": properties, "required": required}
-
-
 def clean_schema(schema: dict) -> SchemaDict:
     """Inlines Pydantic $ref definitions within a JSON schema."""
     definitions = schema.get("$defs", {})
@@ -119,11 +94,29 @@ def clean_schema(schema: dict) -> SchemaDict:
             current = current[part]
         return current
 
-    def _inline(obj: dict) -> dict:
+    @overload
+    def _inline(obj: dict) -> dict: ...
+    @overload
+    def _inline(obj: list) -> list: ...
+    @overload
+    def _inline(obj: str) -> str: ...
+    def _inline(obj: dict | list | str) -> dict | list | str:
         if isinstance(obj, dict):
-            if "$ref" in obj and obj["$ref"].startswith("#/$defs/"):
-                return _resolve_ref(obj["$ref"])
-            return {k: _inline(v) for k, v in obj.items()}
+            new_obj = {}
+            for k, v in obj.items():
+                if k in ["additionalProperties", "$schema", "default"]:
+                    continue
+                if (
+                    k == "$ref"
+                    and isinstance(v, str)
+                    and v.startswith("#/$defs/")
+                ):
+                    ref_value = _resolve_ref(v)
+                    inlined = _inline(ref_value)
+                    new_obj.update(inlined)
+                else:
+                    new_obj[k] = _inline(v)
+            return new_obj
         elif isinstance(obj, list):
             return [_inline(item) for item in obj]
         return obj
@@ -131,11 +124,8 @@ def clean_schema(schema: dict) -> SchemaDict:
     updated_schema = _inline(schema)
     updated_schema["properties"].pop("self")
     updated_schema["required"].remove("self")
+    for key in ["$defs", "title"]:
+        if key in updated_schema:
+            updated_schema.pop(key)
 
-    return {
-        key: value
-        for key, value in updated_schema.items()
-        if key
-        not in ["additionalProperties", "$schema", "$defs", "title", "type"]
-        and value
-    }  # type: ignore
+    return SchemaDict(**updated_schema)

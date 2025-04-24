@@ -196,7 +196,7 @@ class GitRebaseMCPToolManager:
         name="git_start_rebase", description="Starts an interactive Git rebase"
     )
     def git_start_rebase(
-        self, base_commit: str, rebase_plan: Path
+        self, base_commit: str, rebase_plan: str
     ) -> MCPToolOutput:
         """
         Initiates an interactive Git rebase using a provided plan.
@@ -209,7 +209,7 @@ class GitRebaseMCPToolManager:
             A dictionary containing the success status and a message.
         """
         rebase_command = ["rebase", "-i", "--autosquash", base_commit]
-        env = {"GIT_SEQUENCE_EDITOR": f"cat {rebase_plan.name} >"}
+        env = {"GIT_SEQUENCE_EDITOR": f"cat {rebase_plan} >"}
 
         try:
             self.repo.git.execute(
@@ -217,7 +217,7 @@ class GitRebaseMCPToolManager:
                 with_extended_output=False,
                 with_exceptions=True,
                 env=env,
-            )
+            )  # type: ignore
 
             if self.repo.index.conflicts:
                 return {

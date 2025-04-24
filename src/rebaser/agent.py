@@ -155,7 +155,6 @@ async def initialize(
 
         logger.debug("Initializing config...")
         config, schemas = create_config(tools)
-        logger.debug(config)
         tool_schemas = "\n".join(
             f"{name}: {schema}" for name, schema in schemas.items()
         )
