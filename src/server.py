@@ -177,6 +177,21 @@ class GitRebaseMCPToolManager:
             )
         self.repo.git.mv(operation.file_path, operation.new_file_path)
 
+    def _get_diff(self, arg: str | None = None) -> MCPToolOutput:
+        """Get the diff of the repository"""
+        try:
+            return {
+                "success": True,
+                "message": self.repo.git.diff(arg)
+                if arg
+                else self.repo.git.diff(),
+            }
+        except git.GitCommandError as e:
+            return {
+                "success": False,
+                "message": f"Failed to get diff: {e.stderr}",
+            }
+
     @mcp.tool(
         name="git_start_rebase", description="Starts an interactive Git rebase"
     )
@@ -218,20 +233,6 @@ class GitRebaseMCPToolManager:
             return {
                 "success": False,
                 "message": f"An unexpected error occurred: {e}",
-            }
-
-    def _get_diff(self, arg: str | None = None) -> MCPToolOutput:
-        try:
-            return {
-                "success": True,
-                "message": self.repo.git.diff(arg)
-                if arg
-                else self.repo.git.diff(),
-            }
-        except git.GitCommandError as e:
-            return {
-                "success": False,
-                "message": f"Failed to get diff: {e.stderr}",
             }
 
     @mcp.tool(name="git_edit_commit", description="Edits a Git commit")
