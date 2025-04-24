@@ -105,7 +105,7 @@ def convert_to_schema(
     return {"properties": properties, "required": required}
 
 
-def clean_inline_schema(schema: dict) -> SchemaDict:
+def clean_schema(schema: dict) -> SchemaDict:
     """Inlines Pydantic $ref definitions within a JSON schema."""
     definitions = schema.get("$defs", {})
 
