@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "Ashlynn Antrobus", email = "ashrobertsantrobus@gmail.com" }
+    { name = "Ashlynn Antrobus", email = "ashrobertsantrobus@gmail.com" },
 ]
 requires-python = ">=3.13"
 dependencies = [
@@ -12,15 +12,13 @@ dependencies = [
     "google-genai>=1.8.0",
     "loguru>=0.7.3",
     "mcp[cli]>=1.6.0",
-    "pathspec>=0.12.1",
     "pydantic>=2.10.6",
     "python-dotenv>=1.1.0",
 ]
 
 [project.scripts]
 rebaser = "rebaser.main:main"
-git_server = "git_mcp_server:main"
-filesystem_server = "filesystem_mcp_server:main"
+server = "server:main"
 
 [build-system]
 requires = ["hatchling"]
