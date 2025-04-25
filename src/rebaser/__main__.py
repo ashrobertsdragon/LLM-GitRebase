@@ -1,42 +1,70 @@
 import argparse
 import sys
 import time
+from functools import partialmethod
 from pathlib import Path
 
 from loguru import logger
 
-from . import get_commits
-from . import llm
-from . import agent
-from .model import RebasePlan
+from rebaser import get_commits
+from rebaser import llm
+from rebaser import agent
+from rebaser.model import RebasePlan
+
+
+start_time: float = time.time()
+
+
+def create_llm_logger() -> None:
+    logger.level("llm", no=1)
+    logger.level("user", no=2)
+    llm_logger = logger.bind(agent=True)
+    setattr(
+        logger.__class__,
+        "llm",
+        partialmethod(llm_logger.__class__.log, "llm"),
+    )
+    setattr(
+        logger.__class__,
+        "user",
+        partialmethod(llm_logger.__class__.log, "user"),
+    )
 
 
 def set_logger(verbose: bool, silent: bool) -> None:
     """Set up the Loguru logger."""
+    create_llm_logger()
     logger.remove()
-    logger.add(
+    base = logger.add(
         sink=sys.stdout,
         format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{message}</level>",
         level="INFO",
     )
+    logger.add(
+        sink="logs/agent-{int(start_time)}.log",
+        rotation="15 minutes",
+        format="{time:YY-M-D H:m} | {level}: {message}",
+        filter=lambda record: record["extra"].get("agent", False),
+        level="user",
+    )
 
     if verbose:
-        logger.remove()
+        logger.remove(base)
         logger.add(
             sink=sys.stdout,
-            format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{message}</level>",
+            format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{message}</level>",
             level="DEBUG",
         )
         logger.add(
             sink="logs/rebaser.log",
-            format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{message}</level>",
+            format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{message}</level>",
             level="DEBUG",
         )
     elif silent:
-        logger.remove()
+        logger.remove(base)
         logger.add(
             sink="logs/rebaser.log",
-            format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{message}</level>",
+            format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{message}</level>",
             level="ERROR",
         )
 
@@ -167,11 +195,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    start = time.time()
+    exit_code = 0
     try:
         main()
-        logger.debug(f"Execution time: {time.time() - start:.2f} seconds")
     except Exception as e:
         logger.error(e)
-        logger.debug(f"Execution time: {time.time() - start:.2f} seconds")
-        exit(1)
+        exit_code = 1
+    finally:
+        logger.debug(f"Execution time: {time.time() - start_time:.2f} seconds")
+        exit(exit_code)

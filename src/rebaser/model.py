@@ -1,7 +1,6 @@
 from enum import StrEnum
-from typing import Literal, TypedDict, overload
+from typing import Literal, TypedDict
 from pydantic import BaseModel, Field
-from google.genai.types import SchemaDict
 
 
 class RebaseCommit(BaseModel):
@@ -78,54 +77,3 @@ class FileOperation(BaseModel):
 
     class Config:
         extra = "forbid"
-
-
-def clean_schema(schema: dict) -> SchemaDict:
-    """Inlines Pydantic $ref definitions within a JSON schema."""
-    definitions = schema.get("$defs", {})
-
-    def _resolve_ref(ref: str) -> dict:
-        ref_path = ref.replace("#/$defs/", "").split("/")
-        current = definitions
-
-        for part in ref_path:
-            if part not in current:
-                return {"$ref": ref}
-            current = current[part]
-        return current
-
-    @overload
-    def _inline(obj: dict) -> dict: ...
-    @overload
-    def _inline(obj: list) -> list: ...
-    @overload
-    def _inline(obj: str) -> str: ...
-    def _inline(obj: dict | list | str) -> dict | list | str:
-        if isinstance(obj, dict):
-            new_obj = {}
-            for k, v in obj.items():
-                if k in ["additionalProperties", "$schema", "default"]:
-                    continue
-                if (
-                    k == "$ref"
-                    and isinstance(v, str)
-                    and v.startswith("#/$defs/")
-                ):
-                    ref_value = _resolve_ref(v)
-                    inlined = _inline(ref_value)
-                    new_obj.update(inlined)
-                else:
-                    new_obj[k] = _inline(v)
-            return new_obj
-        elif isinstance(obj, list):
-            return [_inline(item) for item in obj]
-        return obj
-
-    updated_schema = _inline(schema)
-    updated_schema["properties"].pop("self")
-    updated_schema["required"].remove("self")
-    for key in ["$defs", "title"]:
-        if key in updated_schema:
-            updated_schema.pop(key)
-
-    return SchemaDict(**updated_schema)

@@ -1,29 +1,17 @@
 import asyncio
-import os
-
-from contextlib import asynccontextmanager
-from dotenv import load_dotenv
 from pathlib import Path
 
 
 from loguru import logger
-from mcp.types import Tool as MCPTool
-from google.genai.client import AsyncClient, BaseApiClient
 from google.genai.chats import AsyncChat, GenerateContentResponse
 from google.genai.errors import APIError
 from google.genai.types import (
     FunctionCall,
-    FunctionDeclarationDict,
-    GenerateContentConfigDict,
-    SchemaDict,
 )
 
+from rebaser import client
+from rebaser.create_agent import build
 from rebaser.mcp_client import MCPClient
-from rebaser.model import MCPToolOutput, convert_to_schema, clean_schema
-
-load_dotenv()
-api_client = BaseApiClient(api_key=os.environ["gemini_key"])
-client = AsyncClient(api_client=api_client)
 
 
 async def get_function_call(
@@ -37,7 +25,7 @@ async def get_function_call(
     return await get_function_call(response, agent)
 
 
-async def agent_loop(
+async def run_agent(
     query: str, agent: AsyncChat, server: MCPClient, attempt: int = 0
 ) -> str:
     """
@@ -48,14 +36,16 @@ async def agent_loop(
     Returns:
         The response from the agent
     """
+    result = None
     try:
         response = await agent.send_message(message=query)
-        function = await get_function_call(response, agent)
-        result = await server.call_tool(function.name, function.args)  # type: ignore Dumbest error ever
+        if function := await get_function_call(response, agent):
+            result = await server.call_tool(function.name, function.args)  # type: ignore
+        # TODO: Figure out how to get MyPy to recognize that get_function_call only returns if function.name
         response_text = response.text or ""
         return (
             response_text + result.content[0].text
-            if result.content[0].type == "text"
+            if result and result.content[0].type == "text"
             else response_text
         )
     except APIError as e:
@@ -66,31 +56,7 @@ async def agent_loop(
             f"Error {e.code}: {e.status} - {e.message}. Retrying in {sleep_time} seconds"
         )
         await asyncio.sleep(sleep_time)
-        return await agent_loop(query, agent, server, attempt + 1)
-
-
-def create_config(
-    tools: list[MCPTool],
-) -> tuple[GenerateContentConfigDict, dict[str, SchemaDict]]:
-    """Create a config for the agent."""
-    function_declarations: list[FunctionDeclarationDict] = []
-    schemas: dict[str, SchemaDict] = {}
-    for tool in tools:
-        schema = clean_schema(tool.inputSchema)
-        function: FunctionDeclarationDict = {
-            "name": tool.name,
-            "description": tool.description,
-            "response": convert_to_schema(MCPToolOutput),
-        }
-        if schema:
-            function["parameters"] = schema
-        function_declarations.append(function)
-
-        schemas[tool.name] = schema
-
-    return {
-        "tools": [{"function_declarations": function_declarations}]
-    }, schemas
+        return await run_agent(query, agent, server, attempt + 1)
 
 
 def prompt_user() -> str:
@@ -100,38 +66,22 @@ def prompt_user() -> str:
         if user.lower() in ["y", "n", "f"]:
             return user.lower()
         print(f"Invalid input {user}. Please enter 'y', 'n', or 'f'.")
+        user = input("> ")
 
 
-async def query_user(
-    response: str, agent: AsyncChat, server: MCPClient
-) -> None:
+async def agent_loop(query: str, agent: AsyncChat, server: MCPClient) -> None:
     while True:
+        response = await run_agent(query, agent, server)
         print(response)
+        logger.llm(response)  # type: ignore
         user = prompt_user()
         if user == "n":
             break
         elif user == "f":
             query = input("Please provide feedback: ")
+            logger.user(query)  # type: ignore
         else:
             query = "Continue"
-        response = await agent_loop(query, agent, server)
-
-
-@asynccontextmanager
-async def get_server(repo_path: Path):
-    command = "uv"
-    args = ["run", "server", str(repo_path)]
-    logger.debug(f"running command: {command} {args}")
-    client = MCPClient()
-    try:
-        await client.connect_to_server(command, args, env=None)
-        yield client
-    finally:
-        await client.aclose()
-
-
-async def get_tools(server_client: MCPClient) -> list[MCPTool]:
-    return await server_client._list_tools()
 
 
 async def initialize(
@@ -150,27 +100,15 @@ async def initialize(
     """
 
     logger.debug("Connecting to MCP server...")
-    async with get_server(repo_path) as server_client:
-        tools = await get_tools(server_client)
+    async with client.get_server(repo_path) as server_client:
+        tools = await client.get_tools(server_client)
 
-        logger.debug("Initializing config...")
-        config, schemas = create_config(tools)
-        tool_schemas = "\n".join(
-            f"{name}: {schema}" for name, schema in schemas.items()
+        agent, initial_query = build(
+            tools, base_commit, plan_file, initial_query_file
         )
-        logger.debug(tool_schemas)
-        initial_query_text = initial_query_file.read_text()
-        initial_query = initial_query_text.format(
-            plan_file=str(plan_file),
-            base_ref=base_commit,
-            tool_schemas=tool_schemas,
-        )
-        logger.debug("Creating agent")
-        agent = client.chats.create(model=os.environ["model"], config=config)
+
         logger.debug("Sending initial query...")
-        response = await agent_loop(initial_query, agent, server_client)
-
-        await query_user(response, agent, server_client)
+        await agent_loop(initial_query, agent, server_client)
 
 
 def main(repo_path: Path, base_commit: str, plan_file: Path, query_file: Path):
