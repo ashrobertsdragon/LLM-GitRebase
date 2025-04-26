@@ -40,9 +40,9 @@ def set_logger(verbose: bool, silent: bool) -> None:
         format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{message}</level>",
         level="INFO",
     )
+    agent_log_path = f"logs/agent-{int(start_time)}.log"
     logger.add(
-        sink="logs/agent-{int(start_time)}.log",
-        rotation="15 minutes",
+        sink=agent_log_path,
         format="{time:YY-M-D H:m} | {level}: {message}",
         filter=lambda record: record["extra"].get("agent", False),
         level="user",
