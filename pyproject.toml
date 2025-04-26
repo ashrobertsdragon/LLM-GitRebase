@@ -18,7 +18,7 @@ dependencies = [
 
 [project.scripts]
 rebaser = "rebaser.main:main"
-server = "server:main"
+server = "git_mcp_server:main"
 
 [build-system]
 requires = ["hatchling"]
