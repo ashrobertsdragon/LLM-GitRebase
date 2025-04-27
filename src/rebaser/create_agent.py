@@ -1,10 +1,7 @@
 import os
-
-from typing import overload
-from dotenv import load_dotenv
 from pathlib import Path
 
-
+from dotenv import load_dotenv
 from loguru import logger
 from mcp.types import Tool as MCPTool
 from google.genai.client import AsyncClient, BaseApiClient
@@ -15,61 +12,11 @@ from google.genai.types import (
     SchemaDict,
 )
 
+from rebaser.clean_schema import clean_schema
 
 load_dotenv()
 api_client = BaseApiClient(api_key=os.environ["gemini_key"])
 client = AsyncClient(api_client=api_client)
-
-
-def clean_schema(schema: dict) -> SchemaDict:
-    """Inlines Pydantic $ref definitions within a JSON schema."""
-    definitions = schema.get("$defs", {})
-
-    def _resolve_ref(ref: str) -> dict:
-        ref_path = ref.replace("#/$defs/", "").split("/")
-        current = definitions
-
-        for part in ref_path:
-            if part not in current:
-                return {"$ref": ref}
-            current = current[part]
-        return current
-
-    @overload
-    def _inline(obj: dict) -> dict: ...
-    @overload
-    def _inline(obj: list) -> list: ...
-    @overload
-    def _inline(obj: str) -> str: ...
-    def _inline(obj: dict | list | str) -> dict | list | str:
-        if isinstance(obj, dict):
-            new_obj = {}
-            for k, v in obj.items():
-                if k in ["additionalProperties", "$schema", "default"]:
-                    continue
-                if (
-                    k == "$ref"
-                    and isinstance(v, str)
-                    and v.startswith("#/$defs/")
-                ):
-                    ref_value = _resolve_ref(v)
-                    inlined = _inline(ref_value)
-                    new_obj.update(inlined)
-                else:
-                    new_obj[k] = _inline(v)
-            return new_obj
-        elif isinstance(obj, list):
-            return [_inline(item) for item in obj]
-        return obj
-
-    updated_schema = _inline(schema)
-    updated_schema["properties"].pop("self")
-    updated_schema["required"].remove("self")
-    for key in ["$defs", "title"]:
-        if key in updated_schema:
-            updated_schema.pop(key)
-
-    return SchemaDict(**updated_schema)
 
 
 def create_config(
@@ -80,7 +27,7 @@ def create_config(
     schemas: dict[str, SchemaDict] = {}
 
     logger.debug("Initializing config...")
-    for tool in tools:
+    for i, tool in enumerate(tools, 1):
         function: FunctionDeclarationDict = {
             "name": tool.name,
             "description": tool.description,
@@ -88,6 +35,9 @@ def create_config(
         if schema := clean_schema(tool.inputSchema):
             function["parameters"] = schema
             schemas[tool.name] = schema
+            logger.debug(f"Schema for #{i} - {tool.name}:")
+            logger.debug(tool.inputSchema)
+            logger.debug(schema)
         function_declarations.append(function)
 
     return {
