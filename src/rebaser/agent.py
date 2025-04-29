@@ -13,6 +13,8 @@ from rebaser import client
 from rebaser.create_agent import build
 from rebaser.mcp_client import MCPClient
 
+logger.disable("google.genai.types")  # Disable unnecessary warnings
+
 
 async def get_function_call(
     response: GenerateContentResponse, agent: AsyncChat
