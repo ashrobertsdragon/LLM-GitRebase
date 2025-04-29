@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-rebaser = "rebaser.main:main"
+rebaser = "rebaser.__main__:main"
 server = "git_mcp_server:main"
 
 [build-system]
