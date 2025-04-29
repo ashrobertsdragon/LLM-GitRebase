@@ -35,9 +35,6 @@ def create_config(
         if schema := clean_schema(tool.inputSchema):
             function["parameters"] = schema
             schemas[tool.name] = schema
-            logger.debug(f"Schema for #{i} - {tool.name}:")
-            logger.debug(tool.inputSchema)
-            logger.debug(schema)
         function_declarations.append(function)
 
     return {
@@ -54,7 +51,6 @@ def create_initial_query(
     tool_schemas = "\n".join(
         f"{name}: {schema}" for name, schema in schemas.items()
     )
-    logger.debug(tool_schemas)
     initial_query_text = initial_query_file.read_text()
     return initial_query_text.format(
         plan_file=str(plan_file),
