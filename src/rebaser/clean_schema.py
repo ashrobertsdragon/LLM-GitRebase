@@ -59,7 +59,7 @@ def _inline(
             elif key == "anyOf" and isinstance(value, list):
                 inlined_object.update(_inline_anyof(value, _definitions))
             else:
-                inlined_object[key] = _inline(value)
+                inlined_object[key] = _inline(value, _definitions)
         return inlined_object
     elif isinstance(obj, list):
         return [_inline(item, _definitions) for item in obj]
